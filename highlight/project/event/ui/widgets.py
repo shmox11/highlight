@@ -1,4 +1,4 @@
-from PyQt5.QtWidgets import QPushButton, QSlider, QComboBox, QLabel, QAction
+from PyQt5.QtWidgets import QPushButton, QSlider, QComboBox, QLabel, QAction, QPlainTextEdit, QProgressBar, QMessageBox
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 from PyQt5.QtGui import QIcon
 from PyQt5.QtCore import Qt
@@ -42,5 +42,18 @@ class LoadVideoAction(QAction):
         super().__init__(QIcon("resources/icons/load_video_icon.png"), "Load Video", *args, **kwargs)
 
 class GenericButton(QPushButton):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+class MetadataDisplayWidget(QPlainTextEdit):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.setReadOnly(True)  # To prevent editing of the metadata display
+
+class ProgressIndicatorWidget(QProgressBar):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+class ProgressIndicatorWidget(QProgressBar):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
