@@ -309,47 +309,68 @@ class VideoApp(QMainWindow):
     def update_slider_range(self, duration):
         self.position_slider.setRange(0, duration)
 
-    #def get_absolute_coordinates(self, frame, rel_x, rel_y, rel_w, rel_h):
-     #   frame_height, frame_width = frame.shape[:2]
-      #  x = int(rel_x * frame_width)
-       # y = int(rel_y * frame_height)
-       # w = int(rel_w * frame_width)
-       # h = int(rel_h * frame_height)
-       # return x, y, w, h
 
-   # def detect_down_event(self, frame):
-    #    # Load the templates
-     #   down_icon_template = cv2.imread('down_icon.png', 0)
-      #  kill_feed_template = cv2.imread('kill_feed.png', 0)
+    def extract_event(self):
+        event_type = self.event_type_combo_box.currentText()
+        if event_type == "Down":
+            self.detect_down_event()
+        elif event_type == "Shield Break":
+            self.detect_shield_break_event()
 
-        # Convert the frame to grayscale
-       # gray_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+    def detect_shield_break_event(self):
+        # Load the template for the "Shield Break" event
+        shield_break_template = cv2.imread('thumbnail/shield_break/shield_break_1.png', 0)
 
-        # Extract regions of interest
-     #   icon_x, icon_y, icon_w, icon_h = self.get_absolute_coordinates(frame, self.icon_rel_x, self.icon_rel_y, self.icon_rel_w, self.icon_rel_h)
-     #   icon_roi = gray_frame[icon_y:icon_y+icon_h, icon_x:icon_x+icon_w]
+        # Extract the region of interest (ROI) from the video frame
+        frame = self.get_frame_at(self.video_path, self.event_start)
+        height, width = frame.shape[:2]
+        roi = frame[int(height*0.45):int(height*0.55), int(width*0.45):int(width*0.55)]
 
-     #   feed_x, feed_y, feed_w, feed_h = self.get_absolute_coordinates(frame, self.feed_rel_x, self.feed_rel_y, self.feed_rel_w, self.feed_rel_h)
-     #   feed_roi = gray_frame[feed_y:feed_y+feed_h, feed_x:feed_x+feed_w]
+        # Template matching
+        result = cv2.matchTemplate(roi, shield_break_template, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
-        # Visualize the ROIs
-    #    cv2.rectangle(frame, (icon_x, icon_y), (icon_x+icon_w, icon_y+icon_h), (0, 255, 0), 2)
-    #    cv2.rectangle(frame, (feed_x, feed_y), (feed_x+feed_w, feed_y+feed_h), (0, 0, 255), 2)
-     #   cv2.imshow("ROIs", frame)
-     #   cv2.waitKey(0)
+        # Check if the icon is detected
+        if max_val > 0.7:
+            print(f"Shield Break event detected at location: {max_loc}")
+            # Collect metadata
+            metadata = {
+                "event_type": "Shield Break",
+                "start_time": self.event_start,
+                "end_time": self.event_end,
+                "icon_location": max_loc
+            }
+            print(metadata)
+        else:
+            print("Shield Break event not detected.")
 
-        # Template matching for down icon
-     #   result_icon = cv2.matchTemplate(icon_roi, down_icon_template, cv2.TM_CCOEFF_NORMED)
-     #   _, max_val_icon, _, _ = cv2.minMaxLoc(result_icon)
 
-        # OCR for kill feed
-     #   text = pytesseract.image_to_string(feed_roi)
-     #   print(f"OCR Output: {text}")  # Debugging the OCR output
+    def detect_down_event(self):
+        # Load the template for the "Down" event
+        down_icon_template = cv2.imread('thumbnail/center_down_icon/center_down_icon_1.png', 0)
 
-     #   if max_val_icon > 0.01 and "down" in text.lower():
-      #      print("Down event detected!")
-      #  else:
-       #     print(f"Max Val Icon: {max_val_icon}")  # Debugging the template matching result
+        # Extract the region of interest (ROI) from the video frame
+        frame = self.get_frame_at(self.video_path, self.event_start)
+        height, width = frame.shape[:2]
+        roi = frame[int(height*0.45):int(height*0.55), int(width*0.45):int(width*0.55)]
+
+        # Template matching
+        result = cv2.matchTemplate(roi, down_icon_template, cv2.TM_CCOEFF_NORMED)
+        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+
+        # Check if the icon is detected
+        if max_val > 0.7:
+            print(f"Down event detected at location: {max_loc}")
+            # Collect metadata
+            metadata = {
+                "event_type": "Down",
+                "start_time": self.event_start,
+                "end_time": self.event_end,
+                "icon_location": max_loc
+            }
+            print(metadata)
+        else:
+            print("Down event not detected.")
 
     def handle_media_status(self, status):
         print(f"Media Status: {status}")  # Debug print
