@@ -1,7 +1,9 @@
-from PyQt5.QtWidgets import QPushButton, QSlider, QComboBox, QLabel, QAction, QPlainTextEdit, QProgressBar, QMessageBox
+#widgets.py
+
+from PyQt5.QtWidgets import QPushButton, QSlider, QComboBox, QLabel, QAction, QPlainTextEdit, QProgressBar, QMessageBox, QWidget, QLabel
 from PyQt5.QtMultimediaWidgets import QVideoWidget
-from PyQt5.QtGui import QIcon
-from PyQt5.QtCore import Qt
+from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtCore import Qt, pyqtSignal
 
 class PlayPauseButton(QPushButton):
     def __init__(self, *args, **kwargs):
@@ -16,8 +18,14 @@ class FrameSkipButton(QPushButton):
         super().__init__(*args, **kwargs)
 
 class MarkButton(QPushButton):
+    marked = pyqtSignal()
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+        self.clicked.connect(self.emit_marked_signal)
+
+    def emit_marked_signal(self):
+        self.marked.emit()
 
 class PositionSlider(QSlider):
     def __init__(self, *args, **kwargs):
@@ -57,3 +65,25 @@ class ProgressIndicatorWidget(QProgressBar):
 class ProgressIndicatorWidget(QProgressBar):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
+
+class ScrubbedPreview(QWidget):
+    def __init__(self):
+        super().__init__()
+        self.thumbnail_label = QLabel(self)
+        
+        # Thumbnail Label Setup
+        self.thumbnail_label.setAlignment(Qt.AlignCenter)
+        self.thumbnail_label.setScaledContents(True)
+        # If you want to set a fixed size for the thumbnail label, you can do so here:
+        # self.thumbnail_label.setFixedSize(100, 100)  # Example size
+
+    def set_thumbnail(self, thumbnail_image):
+        """
+        Set the thumbnail image for the preview.
+        
+        Args:
+            thumbnail_image (QImage): Thumbnail image to display.
+        """
+        pixmap = QPixmap.fromImage(thumbnail_image)
+        self.thumbnail_label.setPixmap(pixmap)
+
