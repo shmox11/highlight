@@ -12,7 +12,14 @@ class ClipExtractor:
         
         clip_dir = os.path.join("clips", event_type)
         os.makedirs(clip_dir, exist_ok=True)
-        output_path = os.path.join(clip_dir, f"{start_time}_{end_time}.avi")
+        
+        base_output_path = os.path.join(clip_dir, f"{start_time}_{end_time}.avi")
+        output_path = base_output_path
+        
+        counter = 1
+        while os.path.exists(output_path):
+            output_path = os.path.join(clip_dir, f"{start_time}_{end_time}_{counter}.avi")
+            counter += 1
         
         out = cv2.VideoWriter(output_path, fourcc, fps, (int(cap.get(3)), int(cap.get(4))))
         cap.set(cv2.CAP_PROP_POS_MSEC, start_time)
