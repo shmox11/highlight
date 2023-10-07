@@ -31,6 +31,7 @@ class VideoApp(QMainWindow):
         self.event_start = None
         self.event_end = None
         self.events = []
+        self.event_detector = EventDetector(self.video_path, self.threshold_slider.value() / 100.0)
 
 
     def setup_ui(self):
@@ -100,11 +101,10 @@ class VideoApp(QMainWindow):
         # Threshold Slider
         self.threshold_slider = QSlider(Qt.Horizontal)
         self.threshold_slider.setRange(0, 100)  # Represents 0.00 to 1.00
-        self.threshold_slider.valueChanged.connect(self.update_threshold)
-        self.layout.addWidget(self.threshold_slider)
+        self.threshold_slider.valueChanged.connect(self.adjust_threshold)  # Connect to adjust_threshold
+        self.control_bar.addWidget(self.threshold_slider)
         self.threshold_label = QLabel("Threshold: 0.50")
-        self.layout.addWidget(self.threshold_label)
-
+        self.control_bar.addWidget(self.threshold_label)
 
         # Event Type Dropdown and Extract Button
         self.event_type_combo_box = EventTypeComboBox()
@@ -137,7 +137,7 @@ class VideoApp(QMainWindow):
         self.media_player.positionChanged.connect(self.update_timer_label)
         self.media_player.error.connect(self.handle_error)
         self.media_player.mediaStatusChanged.connect(self.handle_media_status)
-        self.threshold_slider.valueChanged.connect(self.adjust_threshold)
+     #   self.threshold_slider.valueChanged.connect(self.adjust_threshold)
         self.events = []
 
   
@@ -236,7 +236,8 @@ class VideoApp(QMainWindow):
     def adjust_threshold(self, value):
         threshold = value / 100.0
         # Here, you can update the threshold value wherever it's needed
-        self.threshold_label.setText(f"Threshold: {self.threshold:.2f}")
+        self.threshold_label.setText(f"Threshold: {threshold:.2f}")
+        self.event_detector.threshold = threshold
         print(f"Threshold set to: {threshold}")
 
     def seek_video(self, position):
@@ -299,91 +300,6 @@ class VideoApp(QMainWindow):
 
     def update_slider_range(self, duration):
         self.position_slider.setRange(0, duration)
-
-
- #   def extract_event(self):
-  #      event_type = self.event_type_combo_box.currentText()
-   #     if event_type == "Down":
-    #        self.detect_down_event()
-     #   elif event_type == "Shield Break":
-      #      self.detect_shield_break_event()
-
-   # def detect_shield_break_event(self):
-    #    # Directory containing the shield break templates
-     #   shield_break_template_dir = 'thumbnail/shield_break/'
-        
-        # Extract the region of interest (ROI) from the video frame
-      #  frame = self.get_frame_at(self.video_path, self.event_start)
-       # height, width = frame.shape[:2]
-       # roi = frame[int(height*0.45):int(height*0.55), int(width*0.45):int(width*0.55)]
-       # roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-        
-        # Iterate over each template in the directory
-       # for template_name in os.listdir(shield_break_template_dir):
-       #     template_path = os.path.join(shield_break_template_dir, template_name)
-        #    if not template_path.endswith('.png'):
-         #       continue
-            
-         #   shield_break_template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
-          #  if shield_break_template is None:
-           #     print(f"Error: Failed to read '{template_path}'.")
-            #    continue
-
-            # Template matching
-          #  result = cv2.matchTemplate(roi_gray, shield_break_template, cv2.TM_CCOEFF_NORMED)
-           # _, max_val, _, max_loc = cv2.minMaxLoc(result)
-
-            # Check if the icon is detected
-           # if max_val > 0.3:
-            #    print(f"Shield Break event detected at location: {max_loc} using template {template_name}")
-                # Collect metadata
-             #   metadata = {
-              #      "event_type": "Shield Break",
-               #     "start_time": self.event_start,
-                #    "end_time": self.event_end,
-                 #   "icon_location": max_loc
-              #  }
-              #  print(metadata)
-              #  return  # Exit the function once the event is detected
-
-      #  print("Shield Break event not detected.")
-
-
-#    def detect_down_event(self):
-    # Load all templates for the "Down" event
- #       template_dir = 'thumbnail/center_down_icon'
-  #      template_paths = glob.glob(os.path.join(template_dir, '*.png'))
-   #     templates = [cv2.imread(path, cv2.IMREAD_GRAYSCALE) for path in template_paths]
-
-        # Extract the region of interest (ROI) from the video frame
-    #    frame = self.get_frame_at(self.video_path, self.event_start)
-     #   height, width = frame.shape[:2]
-      #  roi = frame[int(height*0.45):int(height*0.55), int(width*0.45):int(width*0.55)]
-       # roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
-
-     #   detected = False
-      #  for template in templates:
-            # Template matching
-       #     result = cv2.matchTemplate(roi_gray, template, cv2.TM_CCOEFF_NORMED)
-        #    _, max_val, _, max_loc = cv2.minMaxLoc(result)
-
-            # Check if the icon is detected
-         #   if max_val > 0.3:  # Adjust this threshold based on your testing
-          #      print(f"Down event detected at location: {max_loc} using template {template_paths[templates.index(template)]}")
-                # Collect metadata
-           #     metadata = {
-            #        "event_type": "Down",
-             #       "start_time": self.event_start,
-              #      "end_time": self.event_end,
-               #     "icon_location": max_loc
-             #   }
-               # print(metadata)
-                #detected = True
-                #break
-
-      #  if not detected:
-       #     print("Down event not detected.")
-
 
 
 
