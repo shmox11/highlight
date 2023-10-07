@@ -296,16 +296,51 @@ class VideoApp(QMainWindow):
             self.detect_shield_break_event()
 
     def detect_shield_break_event(self):
-        # Load the template for the "Shield Break" event
-        shield_break_template_path = 'thumbnail/shield_break/shield_break_1.png'
-        if not os.path.exists(shield_break_template_path):
-            print(f"Error: File '{shield_break_template_path}' does not exist.")
-            return
+        # Directory containing the shield break templates
+        shield_break_template_dir = 'thumbnail/shield_break/'
+        
+        # Extract the region of interest (ROI) from the video frame
+        frame = self.get_frame_at(self.video_path, self.event_start)
+        height, width = frame.shape[:2]
+        roi = frame[int(height*0.45):int(height*0.55), int(width*0.45):int(width*0.55)]
+        roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+        
+        # Iterate over each template in the directory
+        for template_name in os.listdir(shield_break_template_dir):
+            template_path = os.path.join(shield_break_template_dir, template_name)
+            if not template_path.endswith('.png'):
+                continue
+            
+            shield_break_template = cv2.imread(template_path, cv2.IMREAD_GRAYSCALE)
+            if shield_break_template is None:
+                print(f"Error: Failed to read '{template_path}'.")
+                continue
 
-        shield_break_template = cv2.imread(shield_break_template_path, cv2.IMREAD_GRAYSCALE)
-        if shield_break_template is None:
-            print(f"Error: Failed to read '{shield_break_template_path}'.")
-            return
+            # Template matching
+            result = cv2.matchTemplate(roi_gray, shield_break_template, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
+
+            # Check if the icon is detected
+            if max_val > 0.3:
+                print(f"Shield Break event detected at location: {max_loc} using template {template_name}")
+                # Collect metadata
+                metadata = {
+                    "event_type": "Shield Break",
+                    "start_time": self.event_start,
+                    "end_time": self.event_end,
+                    "icon_location": max_loc
+                }
+                print(metadata)
+                return  # Exit the function once the event is detected
+
+        print("Shield Break event not detected.")
+
+
+    def detect_down_event(self):
+    # Load all templates for the "Down" event
+        template_dir = 'thumbnail/center_down_icon'
+        template_paths = glob.glob(os.path.join(template_dir, '*.png'))
+        templates = [cv2.imread(path, cv2.IMREAD_GRAYSCALE) for path in template_paths]
 
         # Extract the region of interest (ROI) from the video frame
         frame = self.get_frame_at(self.video_path, self.event_start)
@@ -313,54 +348,31 @@ class VideoApp(QMainWindow):
         roi = frame[int(height*0.45):int(height*0.55), int(width*0.45):int(width*0.55)]
         roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
 
-        # Template matching
-        result = cv2.matchTemplate(roi_gray, shield_break_template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(result)
+        detected = False
+        for template in templates:
+            # Template matching
+            result = cv2.matchTemplate(roi_gray, template, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
-        # Check if the icon is detected
-        if max_val > 0.3:
-            print(f"Shield Break event detected at location: {max_loc}")
-            # Collect metadata
-            metadata = {
-                "event_type": "Shield Break",
-                "start_time": self.event_start,
-                "end_time": self.event_end,
-                "icon_location": max_loc
-            }
-            print(metadata)
-        else:
-            print("Shield Break event not detected.")
+            # Check if the icon is detected
+            if max_val > 0.3:  # Adjust this threshold based on your testing
+                print(f"Down event detected at location: {max_loc} using template {template_paths[templates.index(template)]}")
+                # Collect metadata
+                metadata = {
+                    "event_type": "Down",
+                    "start_time": self.event_start,
+                    "end_time": self.event_end,
+                    "icon_location": max_loc
+                }
+                print(metadata)
+                detected = True
+                break
 
-
-
-    def detect_down_event(self):
-        # Load the template for the "Down" event
-        down_icon_template = cv2.imread('thumbnail/center_down_icon/center_down_icon_1.png', cv2.IMREAD_GRAYSCALE)
-
-        # Extract the region of interest (ROI) from the video frame
-        frame = self.get_frame_at(self.video_path, self.event_start)
-        height, width = frame.shape[:2]
-        roi = frame[int(height*0.45):int(height*0.55), int(width*0.45):int(width*0.55)]
-        roi_gray = self._get_roi_gray(frame)
-        result = cv2.matchTemplate(roi_gray, down_icon_template, cv2.TM_CCOEFF_NORMED)
-
-        # Template matching
-        result = cv2.matchTemplate(roi, down_icon_template, cv2.TM_CCOEFF_NORMED)
-        _, max_val, _, max_loc = cv2.minMaxLoc(result)
-
-        # Check if the icon is detected
-        if max_val > 0.7:
-            print(f"Down event detected at location: {max_loc}")
-            # Collect metadata
-            metadata = {
-                "event_type": "Down",
-                "start_time": self.event_start,
-                "end_time": self.event_end,
-                "icon_location": max_loc
-            }
-            print(metadata)
-        else:
+        if not detected:
             print("Down event not detected.")
+
+
+
 
     def handle_media_status(self, status):
         print(f"Media Status: {status}")  # Debug print
