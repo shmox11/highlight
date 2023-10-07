@@ -1,10 +1,8 @@
-# windows.py
 import sys
 import cv2
 import os
-sys.path.append("/Users/ronschmidt/Applications/highlight/project/")   
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QToolBar, QStatusBar, QFileDialog, QLabel, QMessageBox, QSizePolicy)
-from PyQt5.QtCore import QUrl, Qt, pyqtSignal  
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QToolBar, QStatusBar, QFileDialog, QLabel, QMessageBox, QSizePolicy, QPushButton)
+from PyQt5.QtCore import QUrl, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
 from PyQt5.QtMultimediaWidgets import QVideoWidget
@@ -12,10 +10,20 @@ from widgets import (PlayPauseButton, SpeedButton, FrameSkipButton, MarkButton, 
 from video_processing import extract_thumbnails
 import pytesseract
 
+sys.path.append("/Users/ronschmidt/Applications/highlight/project/")
+
+
 class VideoApp(QMainWindow):
     def __init__(self):
         super().__init__()
+        self.setup_ui()
+        self.setup_media_player()
+        self.setup_signals_slots()
+        self.event_start = None
+        self.event_end = None
+        self.events = []
 
+    def setup_ui(self):
         # Main Window Properties
         self.setWindowTitle("Video Processing Application")
         self.setGeometry(100, 100, 800, 600)
@@ -24,20 +32,16 @@ class VideoApp(QMainWindow):
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.layout = QVBoxLayout(self.central_widget)
-        
-        # Video Widget and Media Player
+
+        # Video Widget
         self.video_widget = QVideoWidget()
         self.video_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.layout.setStretchFactor(self.video_widget, 1)
         self.video_widget.setAspectRatioMode(Qt.KeepAspectRatio)
         self.video_widget.setStyleSheet("background-color: red;")
         self.layout.addWidget(self.video_widget)
-        
-        # Initialize the media player
-        self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
-        self.media_player.setVideoOutput(self.video_widget)
 
-        # Thumbnail Layout Initialization
+        # Thumbnail Layout
         self.thumbnail_layout = QHBoxLayout()
         self.layout.addLayout(self.thumbnail_layout)
         print("Thumbnail Layout Initialized")
@@ -57,16 +61,13 @@ class VideoApp(QMainWindow):
         self.control_bar = QToolBar()
         self.addToolBar(Qt.BottomToolBarArea, self.control_bar)
 
-
         # Load Video Icon
         self.load_video_action = LoadVideoAction(self)
         self.control_bar.addAction(self.load_video_action)
-        self.load_video_action.triggered.connect(self.load_video)
 
         # Play/Pause Button
         self.play_pause_btn = PlayPauseButton()
         self.control_bar.addWidget(self.play_pause_btn)
-        self.play_pause_btn.clicked.connect(self.play_pause_video)
 
         # Speed Control Buttons
         self.decrease_speed_btn = SpeedButton("-")
@@ -95,18 +96,20 @@ class VideoApp(QMainWindow):
         self.layout.addWidget(self.event_type_combo_box)
         self.extract_event_btn = GenericButton("Extract Event")
         self.layout.addWidget(self.extract_event_btn)
-        self.media_player.error.connect(self.handle_error)
-        self.media_player.mediaStatusChanged.connect(self.handle_media_status)
 
         # Status Bar
         self.status_bar = QStatusBar()
         self.setStatusBar(self.status_bar)
 
-        # Initialize event markers
-        self.event_start = None
-        self.event_end = None
+    def setup_media_player(self):
+        # Initialize the media player
+        self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+        self.media_player.setVideoOutput(self.video_widget)
 
-        # Connect the mark buttons
+    def setup_signals_slots(self):
+        # Connect signals and slots
+        self.load_video_action.triggered.connect(self.load_video)
+        self.play_pause_btn.clicked.connect(self.play_pause_video)
         self.mark_start_btn.clicked.connect(self.mark_start)
         self.mark_end_btn.clicked.connect(self.mark_end)
         self.frame_skip_forward_btn.clicked.connect(self.frame_skip_forward)
@@ -114,41 +117,16 @@ class VideoApp(QMainWindow):
         self.increase_speed_btn.clicked.connect(self.increase_speed)
         self.decrease_speed_btn.clicked.connect(self.decrease_speed)
         self.volume_slider.valueChanged.connect(self.adjust_volume)
-
-
-        # Signal Slots
+        self.extract_event_btn.clicked.connect(self.extract_event)
         self.media_player.positionChanged.connect(self.update_slider_position)
         self.position_slider.sliderMoved.connect(self.seek_video)
         self.media_player.positionChanged.connect(self.update_timer_label)
-     #   self.scrubbed_preview = ScrubbedPreview()
-        self.layout.addWidget(self.scrubbed_preview)
         self.media_player.error.connect(self.handle_error)
         self.media_player.mediaStatusChanged.connect(self.handle_media_status)
-        self.extract_event_btn.clicked.connect(self.extract_event)
 
         self.events = []
 
-      #  # Initialize event markers
-       # self.event_start = None
-       # self.event_end = None
-
-      #  # Connect the mark buttons
-      #  self.mark_start_btn.marked.connect(self.mark_start)
-      #  self.mark_end_btn.marked.connect(self.mark_end)
-      #  self.icon_rel_x = 0.45
-      #  self.icon_rel_y = 0.45
-      #  self.icon_rel_w = 0.10
-      #  self.icon_rel_h = 0.10
-
-      #  self.feed_rel_x = 0.15
-      #  self.feed_rel_y = 0.35
-      #  self.feed_rel_w = 0.10
-      #  self.feed_rel_h = 0.20
-
-
-
-  #  self.events = []
-    
+  
     def mark_start(self):
         if self.event_end and not self.event_start:
             QMessageBox.warning(self, "Warning", "Please mark the end of the event before marking a new start.")
@@ -288,11 +266,11 @@ class VideoApp(QMainWindow):
 
     def frame_skip_forward(self):
         current_position = self.media_player.position()
-        self.media_player.setPosition(current_position + 10)  # Skip forward by 1 second
+        self.media_player.setPosition(current_position + 20)  # Skip forward by 1 second
 
     def frame_skip_backward(self):
         current_position = self.media_player.position()
-        self.media_player.setPosition(current_position - 10)  # Skip backward by 1 second
+        self.media_player.setPosition(current_position - 20)  # Skip backward by 1 second
 
     def increase_speed(self):
         current_rate = self.media_player.playbackRate()
@@ -319,19 +297,28 @@ class VideoApp(QMainWindow):
 
     def detect_shield_break_event(self):
         # Load the template for the "Shield Break" event
-        shield_break_template = cv2.imread('thumbnail/shield_break/shield_break_1.png', 0)
+        shield_break_template_path = 'thumbnail/shield_break/shield_break_1.png'
+        if not os.path.exists(shield_break_template_path):
+            print(f"Error: File '{shield_break_template_path}' does not exist.")
+            return
+
+        shield_break_template = cv2.imread(shield_break_template_path, cv2.IMREAD_GRAYSCALE)
+        if shield_break_template is None:
+            print(f"Error: Failed to read '{shield_break_template_path}'.")
+            return
 
         # Extract the region of interest (ROI) from the video frame
         frame = self.get_frame_at(self.video_path, self.event_start)
         height, width = frame.shape[:2]
         roi = frame[int(height*0.45):int(height*0.55), int(width*0.45):int(width*0.55)]
+        roi_gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
 
         # Template matching
-        result = cv2.matchTemplate(roi, shield_break_template, cv2.TM_CCOEFF_NORMED)
+        result = cv2.matchTemplate(roi_gray, shield_break_template, cv2.TM_CCOEFF_NORMED)
         _, max_val, _, max_loc = cv2.minMaxLoc(result)
 
         # Check if the icon is detected
-        if max_val > 0.7:
+        if max_val > 0.3:
             print(f"Shield Break event detected at location: {max_loc}")
             # Collect metadata
             metadata = {
@@ -345,14 +332,17 @@ class VideoApp(QMainWindow):
             print("Shield Break event not detected.")
 
 
+
     def detect_down_event(self):
         # Load the template for the "Down" event
-        down_icon_template = cv2.imread('thumbnail/center_down_icon/center_down_icon_1.png', 0)
+        down_icon_template = cv2.imread('thumbnail/center_down_icon/center_down_icon_1.png', cv2.IMREAD_GRAYSCALE)
 
         # Extract the region of interest (ROI) from the video frame
         frame = self.get_frame_at(self.video_path, self.event_start)
         height, width = frame.shape[:2]
         roi = frame[int(height*0.45):int(height*0.55), int(width*0.45):int(width*0.55)]
+        roi_gray = self._get_roi_gray(frame)
+        result = cv2.matchTemplate(roi_gray, down_icon_template, cv2.TM_CCOEFF_NORMED)
 
         # Template matching
         result = cv2.matchTemplate(roi, down_icon_template, cv2.TM_CCOEFF_NORMED)
