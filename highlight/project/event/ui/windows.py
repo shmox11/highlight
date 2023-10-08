@@ -11,7 +11,7 @@ from video_processing import extract_thumbnails
 import pytesseract
 
 # Import the necessary modules
-from video_processors.event_detector import EventDetector
+from video_processors.event_detector import EventDetector, KillFeedExtractor, AutoEventDetector
 from video_processors.clip_extractor import ClipExtractor
 from video_processors.logger import setup_logger
 
@@ -31,8 +31,7 @@ class VideoApp(QMainWindow):
         self.event_start = None
         self.event_end = None
         self.events = []
-        self.event_detector = EventDetector(self.video_path, self.threshold_slider.value() / 100.0)
-
+        self.initialize_event_detector()  # Initialize the event detector
 
     def setup_ui(self):
         # Main Window Properties
@@ -106,11 +105,17 @@ class VideoApp(QMainWindow):
         self.threshold_label = QLabel("Threshold: 0.50")
         self.control_bar.addWidget(self.threshold_label)
 
+
+
         # Event Type Dropdown and Extract Button
         self.event_type_combo_box = EventTypeComboBox()
         self.layout.addWidget(self.event_type_combo_box)
         self.extract_event_btn = GenericButton("Extract Event")
         self.layout.addWidget(self.extract_event_btn)
+
+        # Auto Detect Events Button
+        self.auto_detect_btn = GenericButton("Auto Detect Events")
+        self.layout.addWidget(self.auto_detect_btn)
 
         # Status Bar
         self.status_bar = QStatusBar()
@@ -138,13 +143,11 @@ class VideoApp(QMainWindow):
         self.media_player.error.connect(self.handle_error)
         self.media_player.mediaStatusChanged.connect(self.handle_media_status)
      #   self.threshold_slider.valueChanged.connect(self.adjust_threshold)
+        self.auto_detect_btn.clicked.connect(self.auto_detect_events)
         self.events = []
 
   
     def mark_start(self):
-        if self.event_end and not self.event_start:
-            QMessageBox.warning(self, "Warning", "Please mark the end of the event before marking a new start.")
-            return
         self.event_start = self.media_player.position()
         print(f"Marked Start at {self.event_start} ms")
 
@@ -155,67 +158,45 @@ class VideoApp(QMainWindow):
         self.event_end = self.media_player.position()
         print(f"Marked End at {self.event_end} ms")
         self.events.append((self.event_start, self.event_end))
-        self.event_start = None
-        self.event_end = None
+        # Removed the lines that reset self.event_start and self.event_end to None
+
+ #   def initialize_event_detector(self):
+  #      if hasattr(self, 'video_path'):
+   #         self.detector = EventDetector(self.threshold_slider.value() / 100.0)
+    #    else:
+     #       # Handle the case where video_path is not set, e.g., show an error message or prompt user to load a video.
+      #      pass
 
     def extract_event(self):
-        # Use EventDetector for detection
-        detector = EventDetector(self.video_path, self.threshold_slider.value() / 100.0)
-        events = detector.detect_events()
+        # Debug print to check the values and their types
+        print(f"Event Start: {self.event_start}, Type: {type(self.event_start)}")
+        print(f"Event End: {self.event_end}, Type: {type(self.event_end)}")
 
-        for event_type, event_start, event_end in events:
-            # Use ClipExtractor after detecting an event
-            clip_extractor = ClipExtractor(self.video_path)
-            clip_path = clip_extractor.extract_clip(event_start, event_end, event_type)
-            self.logger.info(f"Clip extracted to: {clip_path}")
+        # Check if both event_start and event_end are set
+        if self.event_start is None or self.event_end is None:
+            QMessageBox.warning(self, "Warning", "Please mark both the start and end of the event.")
+            return
 
-            # Extract metadata
-            # (You can expand this part later when you implement the MetadataExtractor)
-            metadata = {
-                "event_type": event_type,
-                "start_time": event_start,
-                "end_time": event_end
-            }
-            self.logger.info(f"Metadata extracted: {metadata}")
-    
-    def extract_video_snippet(self, video_path, start_time, end_time, output_path):
-        cap = cv2.VideoCapture(video_path)
-        fps = int(cap.get(cv2.CAP_PROP_FPS))
-        
-        # Define the codec and create VideoWriter object
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
-        out = cv2.VideoWriter(output_path, fourcc, fps, (int(cap.get(3)), int(cap.get(4))))
-        
-        cap.set(cv2.CAP_PROP_POS_MSEC, start_time)
-        while cap.get(cv2.CAP_PROP_POS_MSEC) < end_time:
-            ret, frame = cap.read()
-            if ret:
-                out.write(frame)
-        
-        cap.release()
-        out.release()
+        # Fetch the event type from the dropdown box
+        selected_event_type = self.event_type_combo_box.currentText().lower().replace(" ", "_")
 
+        # Use ClipExtractor to extract the event clip for the entire marked segment
+        clip_extractor = ClipExtractor(self.video_path)
+        clip_path = clip_extractor.extract_clip(self.event_start, self.event_end, selected_event_type)
 
-    def get_frame_at(self, video_path, timestamp):
-        cap = cv2.VideoCapture(video_path)
-        cap.set(cv2.CAP_PROP_POS_MSEC, timestamp)
-        ret, frame = cap.read()
-        cap.release()
-        if ret:
-            return frame
-        return None
+        # Log the results
+        self.logger.info(f"Clip extracted to: {clip_path}")
 
-    def extract_metadata(self, video_path, start_time, end_time):
-        metadata = {}
-        metadata['start_time'] = start_time
-        metadata['end_time'] = end_time
-        metadata['duration'] = end_time - start_time
-        # Add more metadata extraction logic here
-        return metadata
+        # Extract a frame at the event start time
+        frame = self.detector.get_frame_at(self.video_path, self.event_start)
+        if frame is not None:
+            # Call the detect_kill_feed_events method and print the results
+            kill_feed_events = self.detector.detect_kill_feed_events(frame)
+            print(f"Kill Feed Events: {kill_feed_events}")
 
-    def extract_text_from_frame(self, frame):
-        text = pytesseract.image_to_string(frame)
-        return text
+        # Reset the marked start and end times
+        self.event_start = None
+        self.event_end = None
 
     def update_timer_label(self, position):
         total_time = self.media_player.duration()
@@ -235,10 +216,11 @@ class VideoApp(QMainWindow):
 
     def adjust_threshold(self, value):
         threshold = value / 100.0
-        # Here, you can update the threshold value wherever it's needed
         self.threshold_label.setText(f"Threshold: {threshold:.2f}")
-        self.event_detector.threshold = threshold
-        print(f"Threshold set to: {threshold}")
+        # Use the detector object to adjust the threshold
+        if hasattr(self, 'detector'):
+            self.detector.threshold = threshold
+            print(f"Threshold set to: {threshold}")
 
     def seek_video(self, position):
         self.media_player.setPosition(position)
@@ -270,6 +252,15 @@ class VideoApp(QMainWindow):
                 self.scrubbed_preview.set_thumbnail(thumbnails[0])
                 print("Scrubbed Preview Updated With First Thumbnail")
 
+            # Initialize the event detector after loading the video
+            self.initialize_event_detector()
+
+    def initialize_event_detector(self):
+        if hasattr(self, 'video_path') and self.video_path:
+            self.detector = EventDetector(self.threshold_slider.value() / 100.0)
+        else:
+            print("Warning: Video path not set. Event detector not initialized.")
+
     def play_pause_video(self):
         # This function will be used to play or pause the video
         if self.media_player.state() == QMediaPlayer.PlayingState:
@@ -296,7 +287,7 @@ class VideoApp(QMainWindow):
     def decrease_speed(self):
         current_rate = self.media_player.playbackRate()
         if current_rate > 0.05:  # Ensure we don't go below 0.5x speed
-            self.media_player.setPlaybackRate(current_rate - 0.05)  # Decrease speed by 0.5x
+            self.media_player.setPlaybackRate(current_rate - 0.5)  # Decrease speed by 0.5x
 
     def update_slider_range(self, duration):
         self.position_slider.setRange(0, duration)
@@ -311,6 +302,16 @@ class VideoApp(QMainWindow):
         print(f"Error: {error_message}")  # Debug print
         self.status_bar.showMessage(f"Error: {error_message}")
 
+    def auto_detect_events(self):
+        # Instantiate the AutoEventDetector class
+        autodetect = AutoEventDetector(self.video_path)
+        
+        # Call the appropriate method to detect events (assuming it's named detect_events)
+        detected_events = autodetect.detect_events()
+        
+        # Process the detected events (e.g., display them in the UI, log them, etc.)
+        for event in detected_events:
+            print(event)  # Placeholder: replace with actual processing logic
 
 
 
