@@ -160,12 +160,6 @@ class VideoApp(QMainWindow):
         self.events.append((self.event_start, self.event_end))
         # Removed the lines that reset self.event_start and self.event_end to None
 
- #   def initialize_event_detector(self):
-  #      if hasattr(self, 'video_path'):
-   #         self.detector = EventDetector(self.threshold_slider.value() / 100.0)
-    #    else:
-     #       # Handle the case where video_path is not set, e.g., show an error message or prompt user to load a video.
-      #      pass
 
     def extract_event(self):
         # Debug print to check the values and their types
@@ -304,8 +298,11 @@ class VideoApp(QMainWindow):
 
     def auto_detect_events(self):
         # Instantiate the AutoEventDetector class
-        autodetect = AutoEventDetector(self.video_path)
+       # autodetect = AutoEventDetector(self.video_path)
         
+        detector_instance = EventDetector()  # Create an instance of EventDetector
+        autodetect = AutoEventDetector(self.video_path, detector_instance)  # Pass the detector instance as the second argument
+
         # Call the appropriate method to detect events (assuming it's named detect_events)
         detected_events = autodetect.detect_events()
         
