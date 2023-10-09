@@ -2,7 +2,7 @@
 import os
 import cv2
 
-class DownEventDetector:
+class DownEvent:
     def __init__(self, threshold=0.8):
         self.templates = self._load_templates("down")
         self.threshold = threshold

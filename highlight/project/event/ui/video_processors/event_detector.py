@@ -1,26 +1,29 @@
+import sys
 import cv2
 import os
 import pytesseract
 import numpy as np
 
-# Importing necessary modules
-from utils import Preprocessor
-from template_extractor import TemplateExtractor
-from auto_detector import AutoEventDetector
+sys.path.append("/Users/ronschmidt/Applications/highlight/project/event/ui/video_processors")
 
-from event_detection.regions.kill_notification_text import KillNotificationText
-from event_detection.regions.kill_counter import KillCounter
+# Importing necessary modules
+from event_detection.utils import Preprocessor
+from event_detection.template_manager import TemplateManager
+from event_detection.auto_detector import AutoEventDetector
+
+from event_detection.events.shield_break import ShieldBreakEvent
+from event_detection.events.kill_event import KillEvent
+from event_detection.events.down_event import DownEvent
+
+from event_detection.regions.kill_notification import KillNotificationText
+from event_detection.regions.killcounter import KillCounter
 from event_detection.regions.center_region import CenterRegion
 from event_detection.regions.kill_feed_extractor import KillFeedExtractor
-
-from events.shield_break_event import ShieldBreakEvent
-from events.kill_event import KillEvent
-from events.down_event import DownEvent
 
 class EventDetector:
     def __init__(self, threshold=0.7):
         self.threshold = threshold
-        self.templates = TemplateExtractor().load_all_templates()
+        self.templates = TemplateManager().load_all_templates()
         self.kill_feed_extractor = KillFeedExtractor()
 
     def detect_event(self, frame):

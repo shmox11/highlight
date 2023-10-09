@@ -1,13 +1,17 @@
 # template_manager.py
 
+import sys
 import cv2
 import os
 
+sys.path.append("/Users/ronschmidt/Applications/highlight/project/event/ui/video_processors")
+
+
 class TemplateManager:
     def __init__(self):
-        self.templates = self._load_all_templates()
+        self.templates = self.load_all_templates()
 
-    def _load_all_templates(self):
+    def load_all_templates(self):
         print("Loading all templates...")
         templates = {}
         # Get the directory of the current script

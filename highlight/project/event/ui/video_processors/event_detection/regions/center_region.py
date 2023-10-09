@@ -1,4 +1,5 @@
 # center_region.py
+import os
 import cv2
 
 class CenterRegion:

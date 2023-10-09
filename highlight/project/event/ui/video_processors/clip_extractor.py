@@ -1,3 +1,4 @@
+#clip_extractor.py
 import cv2
 import os
 
@@ -8,18 +9,21 @@ class ClipExtractor:
     def extract_clip(self, start_time, end_time, event_type):
         cap = cv2.VideoCapture(self.video_path)
         fps = int(cap.get(cv2.CAP_PROP_FPS))
-        fourcc = cv2.VideoWriter_fourcc(*'XVID')
         
-        clip_dir = os.path.join("clips", event_type)
-        os.makedirs(clip_dir, exist_ok=True)
+        # Keep the codec as 'mp4v' for MP4 format
+        fourcc = cv2.VideoWriter_fourcc(*'mp4v')
         
-        base_output_path = os.path.join(clip_dir, f"{start_time}_{end_time}.avi")
-        output_path = base_output_path
+        # Create a directory for each event type inside the clips directory
+        event_dir = os.path.join("clips", event_type)
+        os.makedirs(event_dir, exist_ok=True)
         
-        counter = 1
-        while os.path.exists(output_path):
-            output_path = os.path.join(clip_dir, f"{start_time}_{end_time}_{counter}.avi")
-            counter += 1
+        # Determine the next clip number for the given event type
+        existing_files = os.listdir(event_dir)
+        existing_numbers = [int(f.split('_')[-1].split('.')[0]) for f in existing_files if f.startswith(event_type) and f.endswith('.mp4')]
+        next_clip_number = max(existing_numbers, default=0) + 1
+        
+        # Construct the output path
+        output_path = os.path.join(event_dir, f"{event_type}_{next_clip_number}.mp4")
         
         out = cv2.VideoWriter(output_path, fourcc, fps, (int(cap.get(3)), int(cap.get(4))))
         cap.set(cv2.CAP_PROP_POS_MSEC, start_time)

@@ -1,4 +1,5 @@
 #kill_feed_extractor.py
+import os
 import cv2
 
 class KillFeedExtractor:
