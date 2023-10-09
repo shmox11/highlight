@@ -21,13 +21,18 @@ from event_detection.regions.center_region import CenterRegion
 from event_detection.regions.kill_feed_extractor import KillFeedExtractor
 
 class EventDetector:
-    def __init__(self, threshold=0.7):
+    def __init__(self, events_to_detect, threshold=0.7):
         self.threshold = threshold
-        self.templates = TemplateManager().load_all_templates()
-        self.kill_feed_extractor = KillFeedExtractor()
+        self.detectors = {}
+        if "down" in events_to_detect:
+            self.detectors["down"] = DownEvent(threshold=self.threshold)
+        # ... similarly for other events
+
 
     def detect_event(self, frame):
         # Use the new classes for detection
+        down_event_detector = DownEvent(threshold=self.threshold)
+
         down_event = DownEvent(frame, self.templates)
         if down_event.is_detected():
             return 'down', down_event.location
