@@ -6,7 +6,6 @@ import os
 
 sys.path.append("/Users/ronschmidt/Applications/highlight/project/event/ui/video_processors")
 
-
 class TemplateManager:
     def __init__(self):
         self.templates = self.load_all_templates()
@@ -19,10 +18,6 @@ class TemplateManager:
         # Construct the path to the thumbnail directory
         thumbnail_dir = os.path.join(script_dir, 'thumbnail')
         
-        # Load templates for 'down' event
-        templates['down'] = [cv2.imread(path, cv2.IMREAD_GRAYSCALE) for path in self._load_templates('center_down_icon', thumbnail_dir)]
-   
-
         for event_type in os.listdir(thumbnail_dir):
             event_dir = os.path.join(thumbnail_dir, event_type)
             if os.path.isdir(event_dir):
@@ -34,4 +29,3 @@ class TemplateManager:
         print(f"Loading templates for {event_type}...")
         template_dir = os.path.join(thumbnail_dir, event_type)
         return [os.path.join(template_dir, file) for file in os.listdir(template_dir) if file.endswith('.png')]
-

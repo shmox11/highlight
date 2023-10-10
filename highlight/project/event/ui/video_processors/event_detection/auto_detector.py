@@ -1,5 +1,4 @@
-#auto_detector.py
-
+# auto_detector.py
 import cv2
 import os
 
@@ -29,8 +28,7 @@ class AutoEventDetector:
                     # Highlight the detected event on the frame
                     if loc:  # If a location is returned
                         cv2.rectangle(frame, loc, (loc[0] + 50, loc[1] + 50), (0, 255, 0), 2)  # Adjust size as needed
-                        if event:
-                            print(f"Detected {event} at location {loc}")
+                        print(f"Detected {event} at location {loc}")
 
                     # Display the frame
                     cv2.imshow("Event Detection", frame)
