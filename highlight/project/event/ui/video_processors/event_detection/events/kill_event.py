@@ -1,6 +1,7 @@
 # kill_event.py
-import cv2
+
 import os
+import cv2
 
 class KillEvent:
     def __init__(self, threshold=0.7):

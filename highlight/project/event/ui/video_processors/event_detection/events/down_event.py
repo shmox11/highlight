@@ -1,16 +1,14 @@
-# down_event.py
 import os
 import cv2
+import sys
+sys.path.append("/Users/ronschmidt/Applications/highlight/project/event/ui/video_processors/event_detection")
+from template_manager import TemplateManager  # Import the TemplateManager class
 
 class DownEvent:
-    def __init__(self, threshold=0.8):
-        self.templates = self._load_templates("down")
+    def __init__(self, threshold=0.7):
         self.threshold = threshold
-
-    def _load_templates(self, event_type):
-        """Load templates for the given event type."""
-        template_dir = os.path.join("thumbnail", event_type)
-        return [cv2.imread(path, cv2.IMREAD_GRAYSCALE) for path in os.listdir(template_dir) if path.endswith('.png')]
+        # Create an instance of TemplateManager and access the templates for "center_down_icon"
+        self.templates = TemplateManager().templates['center_down_icon']
 
     def _get_roi_gray(self, frame):
         """Get the region of interest (ROI) in grayscale."""
