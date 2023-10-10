@@ -6,7 +6,6 @@ import numpy as np
 
 sys.path.append("/Users/ronschmidt/Applications/highlight/project/event/ui/video_processors")
 
-# Importing necessary modules
 from event_detection.utils import Preprocessor
 from event_detection.template_manager import TemplateManager
 from event_detection.auto_detector import AutoEventDetector
@@ -21,29 +20,27 @@ from event_detection.regions.center_region import CenterRegion
 from event_detection.regions.kill_feed_extractor import KillFeedExtractor
 
 class EventDetector:
-    def __init__(self, events_to_detect, threshold=0.7):
+    def __init__(self, threshold=0.7):
         self.threshold = threshold
-        self.detectors = {}
-        if "down" in events_to_detect:
-            self.detectors["down"] = DownEvent(threshold=self.threshold)
-        # ... similarly for other events
-
+        self.templates = TemplateManager().load_all_templates()
+        self.kill_feed_extractor = KillFeedExtractor()
 
     def detect_event(self, frame):
         # Use the new classes for detection
-        down_event_detector = DownEvent(threshold=self.threshold)
+        down_event_detector = DownEvent(threshold=self.threshold, templates=self.templates["center_down_icon"])
+        if down_event_detector.detect_down_event(frame):
+            return 'down', down_event_detector.location
 
-        down_event = DownEvent(frame, self.templates)
-        if down_event.is_detected():
-            return 'down', down_event.location
-
-        shield_break_event = ShieldBreakEvent(frame, self.templates)
-        if shield_break_event.is_detected():
+        shield_break_event = ShieldBreakEvent(threshold=self.threshold, templates=self.templates["shield_break"])
+        if shield_break_event.detect_shield_break_event(frame):
             return 'shield_break', shield_break_event.location
 
-        kill_event = KillEvent(frame, self.templates)
-        if kill_event.is_detected():
+        kill_event = KillEvent(threshold=self.threshold, templates=self.templates)  # Pass the entire templates dictionary
+        if kill_event.detect_kill_event(frame):
             return 'kill', kill_event.location
+
+        # If no event is detected
+        return None, None
 
         # For other events, you can continue in a similar fashion:
         # other_event = OtherEvent(frame, self.templates)
@@ -51,7 +48,6 @@ class EventDetector:
         #     return 'other', other_event.location
 
         # If no event is detected
-        return None, None
 
     def get_frame_at(self, video_path, timestamp):
         print(f"Getting frame at timestamp {timestamp}...")
