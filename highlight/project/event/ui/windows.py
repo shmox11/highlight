@@ -1,49 +1,50 @@
-import sys
-import cv2
-import os
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QToolBar, QSlider, QStatusBar, QFileDialog, QLabel, QMessageBox, QSizePolicy, QPushButton)
+# Import necessary libraries and modules
+import sys  # Library for interacting with the Python runtime
+import cv2  # OpenCV library for computer vision tasks
+import os  # Library for interacting with the operating system
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QToolBar, QSlider, QSpinBox, QStatusBar, QFileDialog, QLabel, QMessageBox, QSizePolicy, QPushButton)
 from PyQt5.QtCore import QUrl, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
 from PyQt5.QtMultimediaWidgets import QVideoWidget
+
+# Import custom widgets and video processing functions
 from widgets import (PlayPauseButton, SpeedButton, FrameSkipButton, MarkButton, PositionSlider, EventTypeComboBox, TimerLabel, LoadVideoAction, GenericButton, ScrubbedPreview)
 from video_processing import extract_thumbnails
-import pytesseract
 
-# Import the necessary modules
-from video_processors.event_detector import EventDetector, KillFeedExtractor, AutoEventDetector
+# Import video processing modules
+from video_processors.event_detector import detect_all_events
 from video_processors.clip_extractor import ClipExtractor
 from video_processors.logger import setup_logger
+from video_processors.event_detection.auto_detector import AutoEventDetector
 
+from video_processors.event_detection.preprocessingsettingsdialog import PreprocessingSettingsDialog
+
+
+# Add the specified path to the system path (this line might be specific to your setup)
 sys.path.append("/Users/ronschmidt/Applications/highlight/project/")
 
+# Define the main VideoApp class, which inherits from QMainWindow (a main window class in PyQt5)
 class VideoApp(QMainWindow):
     def __init__(self):
-        super().__init__()
+        super().__init__()  # Call the constructor of the parent class
 
-        # Initialize logger
-        self.logger = setup_logger()
-        self.logger.info("Application started.")
-
+        # Setup the user interface, media player, and connect signals to slots
         self.setup_ui()
         self.setup_media_player()
         self.setup_signals_slots()
-        self.event_start = None
-        self.event_end = None
-        self.events = []
-        self.initialize_event_detector()  # Initialize the event detector
 
     def setup_ui(self):
-        # Main Window Properties
+        # Set properties for the main window
         self.setWindowTitle("Video Processing Application")
         self.setGeometry(100, 100, 800, 600)
 
-        # Central Widget and Layout
+        # Create the central widget and set the main layout
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.layout = QVBoxLayout(self.central_widget)
 
-        # Video Widget
+        # Create the video widget where the video will be displayed
         self.video_widget = QVideoWidget()
         self.video_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.layout.setStretchFactor(self.video_widget, 1)
@@ -51,26 +52,29 @@ class VideoApp(QMainWindow):
         self.video_widget.setStyleSheet("background-color: red;")
         self.layout.addWidget(self.video_widget)
 
-        # Thumbnail Layout
-        self.thumbnail_layout = QHBoxLayout()
-        self.layout.addLayout(self.thumbnail_layout)
-        print("Thumbnail Layout Initialized")
+        # Create a layout for thumbnails
+#        self.thumbnail_layout = QHBoxLayout()
+#        self.layout.addLayout(self.thumbnail_layout)
 
-        # Video Position Slider and Timer
+
+        self.preprocess_settings_button = QPushButton("Preprocessing Settings", self)
+        self.preprocess_settings_button.clicked.connect(self.show_preprocessing_settings_dialog)
+
+        # Create a slider for video position and a timer label
         self.position_slider = PositionSlider()
         self.layout.addWidget(self.position_slider)
         self.timer_label = TimerLabel()
         self.layout.addWidget(self.timer_label)
 
-        # Scrubbed Preview (Thumbnail Display)
-        self.scrubbed_preview = ScrubbedPreview()
-        self.layout.addWidget(self.scrubbed_preview)
-        print("Scrubbed Preview Initialized")
+        # Create a scrubbed preview for thumbnails
+#        self.scrubbed_preview = ScrubbedPreview()
+#        self.layout.addWidget(self.scrubbed_preview)
 
-        # Control Bar
+        # Create a control bar for video controls
         self.control_bar = QToolBar()
         self.addToolBar(Qt.BottomToolBarArea, self.control_bar)
 
+        # Add various controls to the control bar
         # Load Video Icon
         self.load_video_action = LoadVideoAction(self)
         self.control_bar.addAction(self.load_video_action)
@@ -105,13 +109,18 @@ class VideoApp(QMainWindow):
         self.threshold_label = QLabel("Threshold: 0.50")
         self.control_bar.addWidget(self.threshold_label)
 
-
-
         # Event Type Dropdown and Extract Button
         self.event_type_combo_box = EventTypeComboBox()
         self.layout.addWidget(self.event_type_combo_box)
         self.extract_event_btn = GenericButton("Extract Event")
         self.layout.addWidget(self.extract_event_btn)
+        
+        # Skip Frames Box
+        self.frameSkipSpinBox = QSpinBox(self)
+        self.frameSkipSpinBox.setRange(0, 100)  # Adjust the range as needed
+        self.frameSkipSpinBox.setValue(0)  # Default value
+        self.frameSkipSpinBox.setSuffix(" frames to skip")
+        self.layout.addWidget(self.frameSkipSpinBox)  # Add the spin box to your layout
 
         # Auto Detect Events Button
         self.auto_detect_btn = GenericButton("Auto Detect Events")
@@ -122,12 +131,13 @@ class VideoApp(QMainWindow):
         self.setStatusBar(self.status_bar)
 
     def setup_media_player(self):
-        # Initialize the media player
+        # Initialize the media player and set its video output
         self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
         self.media_player.setVideoOutput(self.video_widget)
 
     def setup_signals_slots(self):
-        # Connect signals and slots
+        # Connect various signals to their respective slots
+        # This is how PyQt5 handles events. For example, when a button is clicked, its signal is emitted, and the connected slot (function) is executed.
         self.load_video_action.triggered.connect(self.load_video)
         self.play_pause_btn.clicked.connect(self.play_pause_video)
         self.mark_start_btn.clicked.connect(self.mark_start)
@@ -142,10 +152,8 @@ class VideoApp(QMainWindow):
         self.media_player.positionChanged.connect(self.update_timer_label)
         self.media_player.error.connect(self.handle_error)
         self.media_player.mediaStatusChanged.connect(self.handle_media_status)
-     #   self.threshold_slider.valueChanged.connect(self.adjust_threshold)
         self.auto_detect_btn.clicked.connect(self.auto_detect_events)
         self.events = []
-
   
     def mark_start(self):
         self.event_start = self.media_player.position()
@@ -235,25 +243,17 @@ class VideoApp(QMainWindow):
             self.media_player.play()
             
             # Extract thumbnails
-            thumbnails = extract_thumbnails(file_name)
-            for thumb in thumbnails:
-                pixmap = QPixmap.fromImage(thumb)
-                label = QLabel()
-                label.setPixmap(pixmap)
-                self.thumbnail_layout.addWidget(label)
-                print(f"Thumbnail added to layout: {thumb}")
-            if thumbnails:
-                self.scrubbed_preview.set_thumbnail(thumbnails[0])
-                print("Scrubbed Preview Updated With First Thumbnail")
+#            thumbnails = extract_thumbnails(file_name)
+#            for thumb in thumbnails:
+#                pixmap = QPixmap.fromImage(thumb)
+#                label = QLabel()
+#                label.setPixmap(pixmap)
+#                self.thumbnail_layout.addWidget(label)
+#                print(f"Thumbnail added to layout: {thumb}")
+#            if thumbnails:
+#                self.scrubbed_preview.set_thumbnail(thumbnails[0])
+#                print("Scrubbed Preview Updated With First Thumbnail")
 
-            # Initialize the event detector after loading the video
-            self.initialize_event_detector()
-
-    def initialize_event_detector(self):
-        if hasattr(self, 'video_path') and self.video_path:
-            self.detector = EventDetector(self.threshold_slider.value() / 100.0)
-        else:
-            print("Warning: Video path not set. Event detector not initialized.")
 
     def play_pause_video(self):
         # This function will be used to play or pause the video
@@ -286,6 +286,15 @@ class VideoApp(QMainWindow):
     def update_slider_range(self, duration):
         self.position_slider.setRange(0, duration)
 
+    def open_preprocessing_settings(self):
+        """Open the preprocessing settings dialog."""
+
+        dialog = PreprocessingSettingsDialog()
+        result = dialog.exec_()  # This will show the dialog and wait for user input
+
+        if result == QDialog.Accepted:  # Check if the user clicked "Save"
+            selected_method, block_size, C_value = dialog.get_selected_settings()
+            # Now you have the selected settings stored in the variables
 
 
     def handle_media_status(self, status):
@@ -297,25 +306,23 @@ class VideoApp(QMainWindow):
         self.status_bar.showMessage(f"Error: {error_message}")
 
     def auto_detect_events(self):
-        # Instantiate the AutoEventDetector class
-       # autodetect = AutoEventDetector(self.video_path)
+        threshold = self.threshold_slider.value() / 100.0
+        frames_to_skip = self.frameSkipSpinBox.value()
         
-        detector_instance = EventDetector()  # Create an instance of EventDetector
-        autodetect = AutoEventDetector(self.video_path, detector_instance)  # Pass the detector instance as the second argument
-
-        # Call the appropriate method to detect events (assuming it's named detect_events)
-        detected_events = autodetect.detect_events()
+        # Create an AutoEventDetector object with the specified parameters
+        autodetect = AutoEventDetector(self.video_path, threshold, frames_to_skip)
         
-        # Process the detected events (e.g., display them in the UI, log them, etc.)
-        for event in detected_events:
-            print(event)  # Placeholder: replace with actual processing logic
+        # Call the play_video method to start processing the video
+        autodetect.play_video()
 
 
 
 
 
+
+# This block of code runs when the script is executed directly (not imported as a module)
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    window = VideoApp()
-    window.show()
-    sys.exit(app.exec_())
+    app = QApplication(sys.argv)  # Create a new application
+    window = VideoApp()  # Create the main window
+    window.show()  # Show the main window
+    sys.exit(app.exec_())  # Start the application event loop
