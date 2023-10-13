@@ -4,27 +4,22 @@ import json  # Library to work with JSON data
 from ..event_detector import detect_all_events  # Import the function to detect all events
 from ..event_detection.regions.center_roi import get_center_roi  # Import the function to get the center region of interest
 import logging  # Library for logging information
-from preprocessingsettingsdialog import PreprocessingSettingsDialog
-
+from .preprocessingsettingsdialog import PreprocessingSettingsDialog
+from ..event_detection.preprocess_handler import PreprocessingHandler
 
 # Set the logging level to INFO to display informational messages
 logging.basicConfig(level=logging.INFO)
 
 class AutoEventDetector:
     # Constructor method to initialize the class
-    def __init__(self, video_path, threshold=0.8, frames_to_skip=0, preprocessing_method=None, block_size=None, C_value=None):
-        ...
-        self.preprocessing_method = preprocessing_method
-        self.block_size = block_size
-        self.C_value = C_value
+    def __init__(self, video_path, threshold=0.8, frames_to_skip=0, preprocessing_settings=None):
+        self.preprocessing_settings = preprocessing_settings
         # Store the video path, threshold, and frames to skip as class attributes
         self.video_path = video_path
         self.threshold = threshold
         self.frames_to_skip = frames_to_skip
-   #     self.preprocessing_pipeline = preprocessing_pipeline if preprocessing_pipeline is not None else PREPROCESSING_PIPELINE
 
         print(f"Initialized AutoEventDetector with video_path: {self.video_path}, threshold: {self.threshold}, frames_to_skip: {self.frames_to_skip}")
-
     # Method to play and process the video
     def play_video(self):
         print("Starting play_video method...")
@@ -67,7 +62,7 @@ class AutoEventDetector:
             cv2.rectangle(frame, top_left, bottom_right, (0, 255, 0), 2)
 
             # Detect events in the frame
-            events = detect_all_events(frame, self.threshold, preprocessing_pipeline=self.preprocessing_pipeline)
+            events = detect_all_events(frame, self.threshold, preprocessing_settings=self.preprocessing_settings)
 
             # If a "down_event" is detected, draw a blue rectangle on the frame
             if "down_event" in events:
