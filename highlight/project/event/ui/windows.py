@@ -2,7 +2,7 @@
 import sys  # Library for interacting with the Python runtime
 import cv2  # OpenCV library for computer vision tasks
 import os  # Library for interacting with the operating system
-from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QToolBar, QSlider, QSpinBox, QStatusBar, QFileDialog, QLabel, QMessageBox, QSizePolicy, QPushButton)
+from PyQt5.QtWidgets import (QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QDialog, QWidget, QToolBar, QSlider, QSpinBox, QStatusBar, QFileDialog, QLabel, QMessageBox, QSizePolicy, QPushButton)
 from PyQt5.QtCore import QUrl, Qt, pyqtSignal
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
@@ -19,7 +19,7 @@ from video_processors.logger import setup_logger
 from video_processors.event_detection.auto_detector import AutoEventDetector
 
 from video_processors.event_detection.preprocessingsettingsdialog import PreprocessingSettingsDialog
-
+from video_processors.event_detection.preprocess_handler import PreprocessingHandler
 
 # Add the specified path to the system path (this line might be specific to your setup)
 sys.path.append("/Users/ronschmidt/Applications/highlight/project/")
@@ -286,15 +286,23 @@ class VideoApp(QMainWindow):
     def update_slider_range(self, duration):
         self.position_slider.setRange(0, duration)
 
-    def open_preprocessing_settings(self):
-        """Open the preprocessing settings dialog."""
-
+    def show_preprocessing_settings_dialog(self):
+    #"""Open the preprocessing settings dialog."""
         dialog = PreprocessingSettingsDialog()
         result = dialog.exec_()  # This will show the dialog and wait for user input
 
         if result == QDialog.Accepted:  # Check if the user clicked "Save"
-            selected_method, block_size, C_value = dialog.get_selected_settings()
-            # Now you have the selected settings stored in the variables
+            self.selected_preprocessing_settings = dialog.get_selected_settings()
+            # Now you have the selected settings stored in the dictionary
+            print(f"Selected Preprocessing Settings: {self.selected_preprocessing_settings}")
+
+    def on_btnPreprocessingSettings_clicked(self):
+        # Open PreprocessingSettingsDialog
+        dialog = PreprocessingSettingsDialog(self)
+        dialog.exec_()
+
+        self.selected_preprocessing_settings = dialog.get_selected_settings()
+
 
 
     def handle_media_status(self, status):
