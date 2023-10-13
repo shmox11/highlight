@@ -194,7 +194,7 @@ class VideoApp(QMainWindow):
         if frame is not None:
             # Call the detect_kill_feed_events method and print the results
             kill_feed_events = self.detector.detect_kill_feed_events(frame)
-            print(f"Kill Feed Events: {kill_feed_events}")
+         #   print(f"Kill Feed Events: {kill_feed_events}")
 
         # Reset the marked start and end times
         self.event_start = None
