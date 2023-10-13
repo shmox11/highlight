@@ -31,11 +31,11 @@ def get_shield_break_templates():
 def detect_shield_break_event(frame, threshold=0.8, preprocessing_settings=None):
     # Extract the center region of interest (ROI) from the frame
     roi, top_left, bottom_right = get_center_roi(frame)
-    roi = frame[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]]
+    original_roi = frame[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]]
 
     # Apply preprocessing if settings are provided
     if preprocessing_settings:
-        roi = apply_preprocessing(roi, preprocessing_settings)  # Apply preprocessing to the ROI
+        roi = apply_preprocessing(original_roi, preprocessing_settings)  # Apply preprocessing to the ROI
         print(f"Applied preprocessing to ROI")
     else:
         print(f"Skipped preprocessing for ROI")
@@ -47,12 +47,8 @@ def detect_shield_break_event(frame, threshold=0.8, preprocessing_settings=None)
     best_match_val = -1
     best_match_loc = None
 
-
     # Define a range of scales to resize the templates for matching
     scales = [i for i in range(50, 151, 10)]  # Scales from 0.5x to 1.5x in steps of 0.1x
-
-    if roi.dtype != np.uint8:
-        roi = (roi * 255).astype(np.uint8)
 
     # Loop through each scale and template to find the best match
     for scale in scales:
@@ -63,20 +59,27 @@ def detect_shield_break_event(frame, threshold=0.8, preprocessing_settings=None)
             # Apply preprocessing to the template if settings are provided
             if preprocessing_settings:
                 processed_template = apply_preprocessing(resized_template, preprocessing_settings)
-                print(f"Applied preprocessing to template {template}")
+         #       print(f"Applied preprocessing to template {template}")
             else:
                 processed_template = resized_template
-                print(f"Skipped preprocessing for template {template}")
-            # Skip the template if it's larger than the ROI
-            if roi.shape[0] < template.shape[0] or roi.shape[1] < template.shape[1]:
-                continue
-            
+         #       print(f"Skipped preprocessing for template {template}")
 
+            # Convert ROI and template to grayscale if they are not
+            roi = original_roi.copy()  # Reset the roi to its original value for each iteration
+            if len(roi.shape) == 3:
+                roi = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            if len(processed_template.shape) == 3:
+                processed_template = cv2.cvtColor(processed_template, cv2.COLOR_BGR2GRAY)
 
+            # Ensure both ROI and template are of type CV_8U (8-bit unsigned integer)
+            if roi.dtype != np.uint8:
+                roi = (roi * 255).astype(np.uint8)
             if processed_template.dtype != np.uint8:
                 processed_template = (processed_template * 255).astype(np.uint8)
 
-
+            # Skip the template if it's larger than the ROI
+            if roi.shape[0] < processed_template.shape[0] or roi.shape[1] < processed_template.shape[1]:
+                continue
 
             # Perform template matching to find the location of the template in the ROI
             result = cv2.matchTemplate(roi, processed_template, cv2.TM_CCOEFF_NORMED)
