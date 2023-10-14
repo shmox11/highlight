@@ -1,3 +1,5 @@
+# auto_detector.py
+
 # Import necessary libraries and modules
 import cv2  # OpenCV library for computer vision tasks
 import json  # Library to work with JSON data
@@ -19,7 +21,8 @@ class AutoEventDetector:
         self.threshold = threshold
         self.frames_to_skip = frames_to_skip
 
-        print(f"Initialized AutoEventDetector with video_path: {self.video_path}, threshold: {self.threshold}, frames_to_skip: {self.frames_to_skip}")
+        print(f"Initialized AutoEventDetector with video_path: {self.video_path}, threshold: {self.threshold}, frames_to_skip: {self.frames_to_skip}, preprocessing_settings: {self.preprocessing_settings}")
+
     # Method to play and process the video
     def play_video(self):
         print("Starting play_video method...")
@@ -51,18 +54,16 @@ class AutoEventDetector:
             if not ret:
                 break
 
-            # Increment the frame number
-            frame_number += 1
-
             # Extract the region of interest from the frame
             _, top_left, bottom_right = get_center_roi(frame)
             roi = frame[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]]
-#            print(f"Extracted ROI from frame {frame_number}")
+
             # Draw a green rectangle around the region of interest on the frame
             cv2.rectangle(frame, top_left, bottom_right, (0, 255, 0), 2)
 
             # Detect events in the frame
-            events = detect_all_events(frame, self.threshold, preprocessing_settings=self.preprocessing_settings)
+            # Here, we specify the event type for which we want to apply preprocessing
+            events = detect_all_events(frame, self.threshold, preprocessing_settings=self.preprocessing_settings, event_type="shield_break_event")
 
             # If a "down_event" is detected, draw a blue rectangle on the frame
             if "down_event" in events:
@@ -74,8 +75,7 @@ class AutoEventDetector:
                 timestamp = frame_number / fps
                 minutes = int(timestamp // 60)
                 seconds = int(timestamp % 60)
-                print(f"Event detected at {minutes}:{seconds:02}:{frame_number}")
-
+                print(f"Down Event detected at {minutes}:{seconds:02}:{frame_number}")
 
             # If a "shield_break_event" is detected, draw a Yellow rectangle on the frame
             if "shield_break_event" in events:
@@ -87,18 +87,15 @@ class AutoEventDetector:
                 timestamp = frame_number / fps
                 minutes = int(timestamp // 60)
                 seconds = int(timestamp % 60)
-                print(f"Event detected at {minutes}:{seconds:02}:{frame_number}")
+                print(f"Shield Break Event detected at {minutes}:{seconds:02}:{frame_number}")
 
             # Display the frame
             cv2.imshow('Video Playback', frame)
-#            print(f"Frame {frame_number}")
 
             # If frames are being skipped, jump to the specified frame number
             if self.frames_to_skip > 0:
                 frame_number += self.frames_to_skip
                 cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
-#                print(f"Jumped to frame {frame_number}")
-
 
             # If the 'q' key is pressed, exit the loop
             if cv2.waitKey(1) & 0xFF == ord('q'):
