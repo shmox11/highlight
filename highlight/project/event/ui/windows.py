@@ -287,22 +287,14 @@ class VideoApp(QMainWindow):
         self.position_slider.setRange(0, duration)
 
     def show_preprocessing_settings_dialog(self):
-    #"""Open the preprocessing settings dialog."""
-        dialog = PreprocessingSettingsDialog()
+        """Open the preprocessing settings dialog."""
+        dialog = PreprocessingSettingsDialog(self)
         result = dialog.exec_()  # This will show the dialog and wait for user input
 
         if result == QDialog.Accepted:  # Check if the user clicked "Save"
             self.selected_preprocessing_settings = dialog.get_selected_settings()
             # Now you have the selected settings stored in the dictionary
             print(f"Selected Preprocessing Settings: {self.selected_preprocessing_settings}")
-
-    def on_btnPreprocessingSettings_clicked(self):
-        # Open PreprocessingSettingsDialog
-        dialog = PreprocessingSettingsDialog(self)
-        dialog.exec_()
-
-        self.selected_preprocessing_settings = dialog.get_selected_settings()
-
 
 
     def handle_media_status(self, status):
