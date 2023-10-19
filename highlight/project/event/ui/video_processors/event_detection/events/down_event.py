@@ -2,7 +2,6 @@
 import cv2  # OpenCV library for computer vision tasks
 import os  # Library for interacting with the operating system
 from ...event_detection.regions.center_roi import get_center_roi  # Import the function to get the center region of interest (ROI)
-from ...event_detection.preprocessing import normalize_image  # Import the function to normalize an image
 import logging  # Library for logging information
 
 # Set the logging level to INFO to display informational messages
@@ -18,39 +17,52 @@ def get_down_icon_templates():
     
     # Read all the image templates from the directory and store them in a list
     templates = [cv2.imread(os.path.join(template_dir, f)) for f in os.listdir(template_dir) if f.endswith('.png')]
-    
+
     # Return the list of templates
     return templates
 
 # Define a function to detect the "down" event in a video frame
-def detect_down_event(frame, threshold=0.8):
+def detect_down_event(frame, threshold=0.8, frame_number=0):
+    # Check if the frame is valid
+    if frame is None or frame.size == 0:
+        print("Warning: Input frame is empty or None!")
+        return False, None
+
+    # Print the dimensions of the frame
+    print(f"Frame dimensions: {frame.shape}")
+
     # Extract the center region of interest (ROI) from the frame
     roi, top_left, bottom_right = get_center_roi(frame)
-    roi = frame[top_left[1]:bottom_right[1], top_left[0]:bottom_right[0]]
-#    normalize_roi = normalize_image(roi)
 
+    # Check the dimensions of the extracted ROI
+    if roi.size == 0 or roi.shape[0] <= 0 or roi.shape[1] <= 0:
+        print(f"Warning: Invalid ROI dimensions! Top-left: {top_left}, Bottom-right: {bottom_right}")
+        return False, None
+    else:
+        print(f"ROI dimensions: {roi.shape}")
+    
+    #Save the ROI for debugging
+    cv2.imwrite(f"debug_roi_frame_{frame_number}.png", roi)  # Save the ROI
     # Get the list of "down" icon templates
     templates = get_down_icon_templates()
+    print(f"Number of templates loaded: {len(templates)}")
 
     # Initialize variables to store the best match value and location
     best_match_val = -1
     best_match_loc = None
 
     # Define a range of scales to resize the templates for matching
-    scales = [i for i in range(50, 151, 10)]  # Scales from 0.5x to 1.5x in steps of 0.1x
+    scales = [i for i in range(25, 251, 10)]  # Scales from 0.5x to 1.5x in steps of 0.1x
 
     # Loop through each scale and template to find the best match
     for scale in scales:
         for template in templates:
-
-            # Normalize the template
-#            normalize_template = normalize_image(template)
-
             # Resize the template based on the current scale
             resized_template = cv2.resize(template, (int(template.shape[1] * scale / 100), int(template.shape[0] * scale / 100)))
 
             # Skip the template if it's larger than the ROI
             if roi.shape[0] < resized_template.shape[0] or roi.shape[1] < resized_template.shape[1]:
+                print(f"Warning: Skipping template with shape {resized_template.shape} because it's larger than the ROI with shape {roi.shape}")
                 continue
 
             # Perform template matching to find the location of the template in the ROI
