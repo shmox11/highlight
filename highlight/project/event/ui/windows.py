@@ -288,7 +288,7 @@ class VideoApp(QMainWindow):
 
     def show_preprocessing_settings_dialog(self):
         """Open the preprocessing settings dialog."""
-        dialog = PreprocessingSettingsDialog(self)
+        dialog = PreprocessingSettingsDialog()
         result = dialog.exec_()  # This will show the dialog and wait for user input
 
         if result == QDialog.Accepted:  # Check if the user clicked "Save"
@@ -308,11 +308,7 @@ class VideoApp(QMainWindow):
     def auto_detect_events(self):
         threshold = self.threshold_slider.value() / 100.0
         frames_to_skip = self.frameSkipSpinBox.value()
-        
-        # Create an AutoEventDetector object with the specified parameters
         autodetect = AutoEventDetector(self.video_path, threshold, frames_to_skip)
-        
-        # Call the play_video method to start processing the video
         autodetect.play_video()
 
 
