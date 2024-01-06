@@ -11,7 +11,7 @@ class EventListDialog(QDialog):
 
         self.list_widget = QListWidget(self)
         for event in self.events:
-            self.list_widget.addItem(f"Start: {event.start_time}, End: {event.end_time}, Type: {event.event_type}")
+            self.list_widget.addItem(f"Start: {event['start_time']}, End: {event['end_time']}, Type: {event.get('event_type', 'N/A')}")
         self.layout.addWidget(self.list_widget)
 
         self.button_box = QDialogButtonBox(QDialogButtonBox.Ok, self)

@@ -43,10 +43,12 @@ class VolumeSlider(QSlider):
 
 
 class EventTypeRadioButtons(QWidget):
+    event_type_selected = pyqtSignal(str)  # Signal to emit the selected event type
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.layout = QHBoxLayout(self)
-        self.event_types = ["Shield Break", "Down", "Kill", "Revive", "Near Death", "Player Down", "Team Wipe", "Win"]
+        self.event_types = ["Shield Break", "Down", "Kill", "Revive", "Near Death", "Player Down", "Team Wipe", "Near Death", "Win"]
         self.radio_buttons = []
         self.selected_event_type = None
         self.setup_radio_buttons()
@@ -63,6 +65,7 @@ class EventTypeRadioButtons(QWidget):
         for radio_button in self.radio_buttons:
             if radio_button.isChecked():
                 self.selected_event_type = radio_button.text()
+                self.event_type_selected.emit(self.selected_event_type)  # Emit the signal
                 break
 
 

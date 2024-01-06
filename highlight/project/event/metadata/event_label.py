@@ -1,3 +1,6 @@
+#event_label.py
+#################### Chunk 1 of 3 ####################
+###### get_video_dimensions, VideoApp, load_video_metadata, get_current_label, get_video_fps, get_frame_number, get_current_frame_number, mark_start, mark_end, extract_all_events, extract_event ######
 import sys
 import os
 import logging
@@ -11,13 +14,15 @@ from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QMediaMetaData
 from PyQt5.QtMultimediaWidgets import QVideoWidget
 # Import custom widgets and video processing functions
 from widgets import PlayPauseButton, SpeedButton, FrameSkipButton, MarkButton, EventTypeRadioButtons, PositionSlider, TimerLabel, LoadVideoAction, GenericButton
-from video_processors.clip_extractor import ClipExtractor
+from clip_extractor import ClipExtractor
 from slider import CustomSlider
 from event_list_dialog import EventListDialog
 from metadata import MetadataManager
-from roiwidget import VideoWidgetWithROIs, ROI, Event
+from roiwidget import *
 
 sys.path.append("/Users/ronschmidt/Applications/highlight/project/")
+
+metadata_manager = MetadataManager()
 
 def get_video_dimensions(video_path):
     """Get the dimensions of the video."""
@@ -26,108 +31,185 @@ def get_video_dimensions(video_path):
         raise ValueError("Could not open the video file.")
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    print(f"Video dimensions: {width} x {height}")
     cap.release()
     return QSize(width, height)
- #   self.video_widget.set_video_dimensions(self.video_dimensions.width(), self.video_dimensions.height())
-
 
 class VideoApp(QMainWindow):
-    def __init__(self):
+    def __init__(self, metadata_manager):  # Accept metadata_manager as an argument
         super().__init__()
+        self.metadata_manager = metadata_manager
         self.logger = self.setup_logger()
         self.video_path = None
         self.video_dimensions = QSize()
+
+        self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
+      #  self.video_widget = VideoWidgetWithROIs(self.media_player, self)
+        self.video_widget = VideoWidgetWithROIs(self.media_player, metadata_manager, self)
+        self.video_widget.set_current_frame_number_function(self.get_current_frame_number)
+        self.media_player.setVideoOutput(self.video_widget)
         self.setup_ui()
-        self.setup_media_player()
         self.setup_signals_slots()
         self.events = []
+        
+        self.frame_skip_amount = 33  # Assuming a frame rate of 30 fps
+        self.skip_direction = 0
         self.is_frame_skip_button_pressed = False
         self.frame_skip_timer = QTimer(self)
         self.frame_skip_timer.timeout.connect(self.skip_frame)
-        self.skip_direction = 0
-        self.frame_skip_amount = 40
-        self.metadata_manager = MetadataManager()
+
+        self.frame_rate = 30
         self.event_start = None
-        self.video_widget = VideoWidgetWithROIs(self)
-        self.create_menu_bar()
-        # self.setCentralWidget(self.video_widget)  # Uncomment if this should be part of the initialization
+        self.current_frame_number = None  # Added for current frame tracking
+
+    def load_video_metadata(self, video_path):
+        print("def load_video_metadata(self, video_path):")
+        self.metadata_manager.load_video_info(video_path)
+
+    def get_current_label(self):
+        # Example: return the currently selected item in a dropdown
+        print("def get_current_label(self):")
+        return self.labelDropdown.currentText()
+
+    def get_video_fps(self, video_path):
+        cap = cv2.VideoCapture(video_path)
+        print(f"cap: {cap}")
+        print("def get_video_fps(self, video_path):")
+        if not cap.isOpened():
+            print("Error opening video file")
+            return 0
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        cap.release()
+        return fps
+
+    def get_frame_number(self, time_in_seconds):
+        print("def get_frame_number(self, time_in_seconds):")
+        return int(time_in_seconds * self.frame_rate)
+
+    def get_current_frame_number(self):
+        current_time_ms = self.media_player.position()
+        current_frame = (current_time_ms / 1000) * self.frame_rate
+     #   print(f"Current Frame Number: {current_frame}")
+     #   print("def get_current_frame_number(self):")
+        return int(current_frame)
+
+    def mark_start(self):
+        """Mark the start of an event."""
+        if self.current_event_type is None:
+            QMessageBox.warning(self, "Warning", "No event type selected.")
+            return
+
+        start_frame = self.get_current_frame_number()
+        print(f"Start Frame Number: {start_frame}")
+
+        # Start a new event
+        self.metadata_manager.start_event(self.current_event_type, start_frame)
+
+        # Update button styles
+        self.mark_start_btn.setStyleSheet("background-color: green")
+        self.mark_end_btn.setStyleSheet("")
+
+    def mark_end(self):
+        """Mark the end of an event."""
+        if not self.metadata_manager.metadata["events"]:
+            QMessageBox.warning(self, "Warning", "No event has been started.")
+            return
+
+        end_frame = self.get_current_frame_number()
+        print(f"End Frame Number: {end_frame}")
+
+        # End the event with only the end frame
+        self.metadata_manager.update_last_roi_end_frame(end_frame)
+        self.metadata_manager.end_event(end_frame)
+
+
+        self.reset_button_styles()
+
+    def extract_all_events(self):
+        print("def extract_all_events(self):")
+        all_events = self.metadata_manager.get_all_events()
+        for event in all_events:
+            self.extract_event(event)
+        self.metadata_manager.save_metadata()
+
+    def extract_event(self, event):
+        print("def extract_event(self, event):")
+        event_type = event.get('event_type')
+        start_frame = event.get('start_frame')
+        end_frame = event.get('end_frame')
+
+        # Handle missing data
+        if start_frame is None or end_frame is None or event_type is None:
+            self.logger.warning(f"Missing data for event: {event}")
+            print(f"Missing data for event: {event}")
+            return
+
+        # Convert frame numbers to time
+        fps = self.metadata_manager.metadata["video_info"]["fps"]
+        start_time = start_frame / fps
+        end_time = end_frame / fps
+
+        # Extract the clip
+        clip_extractor = ClipExtractor(self.video_path, self.metadata_manager)
+        clip_path = clip_extractor.extract_clip(start_time, end_time, event_type.lower().replace(" ", "_"))
+
+        # Compile ROI data for the clip
+        roi_data_for_clip = []
+        for roi_data in event['roi_data']:
+            roi_data_for_clip.append(roi_data)
+
+        # Prepare clip data
+        clip_data = {
+            "clip_file_name": os.path.basename(clip_path),
+            "event_type": event_type,
+            "start_frame": start_frame,
+            "end_frame": end_frame,
+            "total_frames": end_frame - start_frame + 1,
+            "roi_data": roi_data_for_clip
+        }
+
+        self.metadata_manager.add_clip_data(clip_data)
+
+ #################### Chunk 2 of 3 ####################
+ ###### def load_video, is_video_ended, setup_logger, create_menu_bar, setup_ui, setup_signals_slots, setup_media_player, update_timer_label, seek_video, update_slider_position ######
+
+    def load_video(self):
+        """Load a video file."""
+        video_path, _ = QFileDialog.getOpenFileName(self, "Open Video File", "", "Video Files (*.mp4 *.avi *.mov);;All Files (*)")     
+        if video_path:
+            # Extract the file name and FPS from the video path
+            video_name = os.path.basename(video_path)
+            fps = self.get_video_fps(video_path)
+            dimensions =  get_video_dimensions(video_path)
+            
+
+
+            self.video_path = video_path  # Store the video path
+            self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(video_path)))
+            self.media_player.mediaStatusChanged.connect(self.handle_media_status)
+            self.status_bar.showMessage(f"Loaded Video: {video_name}")
+
+            # Update MetadataManager with video info
+            self.metadata_manager.set_video_info(video_name, fps, dimensions)
+            self.media_player.durationChanged.connect(self.update_slider_range)
+            # Additional code for setting up the video...
+            if not self.video_dimensions.isValid():
+                try:
+                    self.video_dimensions = get_video_dimensions(video_path)
+                    print(f"Video dimensions set to: {self.video_dimensions}")
+                    self.video_widget.set_video_dimensions(self.video_dimensions.width(), self.video_dimensions.height())
+                except ValueError as e:
+                    print(f"Error getting video dimensions: {e}")
+                    # Handle the error, perhaps set a default size or show an error message
+
+    def is_video_ended(self):
+        # Determine if the video has ended
+        return self.media_player.state() == QMediaPlayer.EndOfMedia
 
     def setup_logger(self):
         """Set up logging for the application."""
         logging.basicConfig(level=logging.INFO, format='[%(asctime)s] - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
         return logging.getLogger(__name__)
-
-    def setup_ui(self):
-        """Set up the user interface elements."""
-        self.setWindowTitle("Video Processing Application")
-        self.setGeometry(100, 100, 1250, 800)
-        self.central_widget = QWidget()
-        self.setCentralWidget(self.central_widget)
-        self.layout = QVBoxLayout(self.central_widget)
-
-        # Replace the QVideoWidget with VideoWidgetWithROIs
-        self.video_widget = VideoWidgetWithROIs(self.central_widget)
-        self.video_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.layout.addWidget(self.video_widget)
-
-        self.position_slider = CustomSlider(Qt.Horizontal, self.central_widget)
-        self.layout.addWidget(self.position_slider)
-
-        self.timer_label = TimerLabel(self.central_widget)
-        self.layout.addWidget(self.timer_label)
-
-        self.control_bar = QToolBar(self)
-        self.addToolBar(Qt.BottomToolBarArea, self.control_bar)
-
-        self.load_video_action = LoadVideoAction(self)
-        self.control_bar.addAction(self.load_video_action)
-
-        self.play_pause_btn = PlayPauseButton(self)
-        self.control_bar.addWidget(self.play_pause_btn)
-
-        self.decrease_speed_btn = SpeedButton("-", self)
-        self.control_bar.addWidget(self.decrease_speed_btn)
-
-        self.increase_speed_btn = SpeedButton("+", self)
-        self.control_bar.addWidget(self.increase_speed_btn)
-
-        self.frame_skip_backward_btn = FrameSkipButton("<<", self)
-        self.control_bar.addWidget(self.frame_skip_backward_btn)
-
-        self.frame_skip_forward_btn = FrameSkipButton(">>", self)
-        self.control_bar.addWidget(self.frame_skip_forward_btn)
-
-        self.mark_start_btn = MarkButton("Mark Start", self)
-        self.control_bar.addWidget(self.mark_start_btn)
-
-        self.mark_end_btn = MarkButton("Mark End", self)
-        self.control_bar.addWidget(self.mark_end_btn)
-
-        self.event_type_radio_buttons = EventTypeRadioButtons(self)
-        self.layout.addWidget(self.event_type_radio_buttons)
-
-        self.event_list_btn = GenericButton("Show Event List", self)
-        self.control_bar.addWidget(self.event_list_btn)
-
-        self.extract_event_btn = GenericButton("Extract Event", self)
-        self.control_bar.addWidget(self.extract_event_btn)
-
-        self.store_roi_data_btn = QPushButton("Store ROI Data", self)
-        self.control_bar.addWidget(self.store_roi_data_btn)
-     #   self.store_roi_data_btn.clicked.connect(self.store_roi_data_button_clicked)
-
-
-        # Add a button to start drawing an ROI
-        self.draw_roi_btn = QPushButton("Draw ROI", self)
-        self.control_bar.addWidget(self.draw_roi_btn)
-
-        self.status_bar = QStatusBar(self)
-        self.setStatusBar(self.status_bar)
-
-    def setup_media_player(self):
-        """Set up the media player."""
-        self.media_player = QMediaPlayer(None, QMediaPlayer.VideoSurface)
-        self.media_player.setVideoOutput(self.video_widget)
 
     def create_menu_bar(self):
         # Create the menu bar
@@ -169,6 +251,63 @@ class VideoApp(QMainWindow):
         redo_action.triggered.connect(self.video_widget.redo)
         edit_menu.addAction(redo_action)
         
+    def setup_ui(self):
+        """Set up the user interface elements."""
+        self.setWindowTitle("Video Processing Application")
+        self.setGeometry(100, 100, 1250, 800)
+        self.central_widget = QWidget()
+        self.setCentralWidget(self.central_widget)
+        self.layout = QVBoxLayout(self.central_widget)
+
+        # Add the video widget to the layout
+        self.video_widget.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.layout.addWidget(self.video_widget)
+
+        self.position_slider = CustomSlider(Qt.Horizontal, self)
+        self.layout.addWidget(self.position_slider)
+
+        self.timer_label = TimerLabel(self.central_widget)
+        self.layout.addWidget(self.timer_label)
+
+        self.control_bar = QToolBar(self)
+        self.addToolBar(Qt.BottomToolBarArea, self.control_bar)
+
+        self.load_video_action = LoadVideoAction(self)
+        self.control_bar.addAction(self.load_video_action)
+
+        self.play_pause_btn = PlayPauseButton(self)
+        self.control_bar.addWidget(self.play_pause_btn)
+
+        self.decrease_speed_btn = SpeedButton("-", self)
+        self.control_bar.addWidget(self.decrease_speed_btn)
+
+        self.increase_speed_btn = SpeedButton("+", self)
+        self.control_bar.addWidget(self.increase_speed_btn)
+
+        self.frame_skip_backward_btn = FrameSkipButton("<<", self)
+        self.control_bar.addWidget(self.frame_skip_backward_btn)
+
+        self.frame_skip_forward_btn = FrameSkipButton(">>", self)
+        self.control_bar.addWidget(self.frame_skip_forward_btn)
+
+        self.mark_start_btn = MarkButton("Mark Start", self)
+        self.control_bar.addWidget(self.mark_start_btn)
+
+        self.mark_end_btn = MarkButton("Mark End", self)
+        self.control_bar.addWidget(self.mark_end_btn)
+
+        self.event_type_radio_buttons = EventTypeRadioButtons(self)
+        self.event_type_radio_buttons.event_type_selected.connect(self.on_event_type_selected)
+        self.layout.addWidget(self.event_type_radio_buttons)
+
+        self.event_list_btn = GenericButton("Show Event List", self)
+        self.control_bar.addWidget(self.event_list_btn)
+
+        self.extract_event_btn = GenericButton("Extract Event", self)
+        self.control_bar.addWidget(self.extract_event_btn)
+
+        self.status_bar = QStatusBar(self)
+        self.setStatusBar(self.status_bar)
 
     def setup_signals_slots(self):
         """Set up signals and slots for the application."""
@@ -176,12 +315,10 @@ class VideoApp(QMainWindow):
         self.play_pause_btn.clicked.connect(self.play_pause_video)
         self.mark_start_btn.clicked.connect(self.mark_start)
         self.mark_end_btn.clicked.connect(self.mark_end)
-
         self.frame_skip_forward_btn.pressed.connect(self.start_frame_skip_forward)
         self.frame_skip_forward_btn.released.connect(self.stop_frame_skip)
         self.frame_skip_backward_btn.pressed.connect(self.start_frame_skip_backward)
         self.frame_skip_backward_btn.released.connect(self.stop_frame_skip)
-
         self.increase_speed_btn.clicked.connect(self.increase_speed)
         self.decrease_speed_btn.clicked.connect(self.decrease_speed)
         self.extract_event_btn.clicked.connect(self.extract_all_events)
@@ -191,114 +328,11 @@ class VideoApp(QMainWindow):
         self.media_player.error.connect(self.handle_error)
         self.media_player.mediaStatusChanged.connect(self.handle_media_status)
         self.event_list_btn.clicked.connect(self.show_event_list)
+        self.media_player.positionChanged.connect(self.on_position_changed)
 
-        # Connect the button to the method to start drawing
-        self.draw_roi_btn.clicked.connect(self.video_widget.start_drawing)
-
-    def show_event_list(self):
-        """Display the list of marked events."""
-        dialog = EventListDialog(self.events, self)
-        if dialog.exec_() == QDialog.Accepted:
-            print("User confirmed the event list")
-
-    def start_drawing_roi(self):
-        self.drawing = True
-        self.video_widget.start_drawing()
-        self.update()
-
-    def reset_button_styles(self):
-        self.mark_start_btn.setStyleSheet("")
-        self.mark_end_btn.setStyleSheet("")
-
-    def mark_start(self):
-        self.event_start = self.media_player.position()
-        self.position_slider.add_mark(self.event_start, QColor("red"))
-        print(f"Marked Start at {self.event_start} ms")
-        self.mark_start_btn.setStyleSheet("background-color: red; color: white;")
-
-    def get_current_frame_number(self):
-        # Get the current playback position in milliseconds
-        current_time_ms = self.media_player.position()
-
-        # Get the FPS using the get_fps method
-        fps = self.get_fps()
-
-        # Calculate the current frame number
-        current_frame = (current_time_ms / 1000) * fps
-        return int(current_frame)
-
-
-
-    def get_fps(self):
-        # Assuming self.video_path is the path to your video file
-        cap = cv2.VideoCapture(self.video_path)
-        if not cap.isOpened():
-            print("Error: Could not open video.")
-            return None
-        fps = cap.get(cv2.CAP_PROP_FPS)
-        cap.release()
-        return fps
-
-
-    def mark_end(self):
-        if not hasattr(self, 'event_start'):
-            QMessageBox.warning(self, "Warning", "Please mark the start of the event first.")
-            return
-
-        self.event_end = self.media_player.position()
-        self.position_slider.add_mark(self.event_end, QColor("green"))
-        print(f"Marked End at {self.event_end} ms")
-
-        selected_event_type = self.event_type_radio_buttons.selected_event_type
-        if selected_event_type is None:
-            QMessageBox.warning(self, "Warning", "Please select an event type.")
-            return
-
-        self.events.append(Event(self.event_start, self.event_end, selected_event_type))
-        self.metadata_manager.add_metadata("clip", "event_type", selected_event_type)
-        self.metadata_manager.add_metadata("clip", "end_time", self.event_end)
-        duration = self.event_end - self.event_start
-        self.metadata_manager.add_metadata("clip", "duration", duration)
-        delattr(self, 'event_start')
-        self.reset_button_styles()
-
-    def extract_all_events(self):
-        """Extract all marked events."""
-        for event in self.events:
-            self.extract_event(event)
-        self.events = []  
-
-
-
-
-
-    def extract_event(self, event):
-        """Extract a specific event."""
-        clip_extractor = ClipExtractor(self.video_path)
-        clip_path = clip_extractor.extract_clip(event.start_time, event.end_time, event.event_type.lower().replace(" ", "_"))
-        self.logger.info(f"Clip extracted to: {clip_path}")
-        event_info = {
-            "event_type": event.event_type,
-            "video_path": self.video_path,
-            "timestamp": event.start_time,
-            "duration": event.end_time - event.start_time,
-            "clip_path": clip_path,
-            "status": "Clip Extracted"
-        }
-     #   event_metadata = self.metadata_manager.get_metadata(event.start_time)
-     #   event_info.update(event_metadata)
-        self.logger.info("Event added to the list: %s", event_info)
-
-        clip_metadata = {
-                "start_time": event.start_time,
-                "end_time": event.end_time,
-                "duration": event.end_time - event.start_time,
-                "event_type": event.event_type,
-                "clip_path": clip_path
-        }
-        self.metadata_manager.add_metadata("clip", "clip_info", clip_metadata)
-        self.metadata_manager.save_metadata("metadata.json")
-
+    def setup_media_player(self):
+        """Set up the media player."""
+        self.media_player.setVideoOutput(self.video_widget)
 
     def update_timer_label(self, position):
         """Update the timer label."""
@@ -313,34 +347,11 @@ class VideoApp(QMainWindow):
 
     def update_slider_position(self, position):
         """Update the slider position."""
-        self.position_slider.setValue(position)
+        if self.position_slider:
+            self.position_slider.setValue(position)
 
-    def load_video(self):
-        """Load a video file."""
-        print("Loading Video")
-        video_path, _ = QFileDialog.getOpenFileName(self, "Open Video File", "", "Video Files (*.mp4 *.avi *.mov);;All Files (*)")
-        
-        if video_path:
-            file_name = os.path.basename(video_path)  # Extract the file name from the path
-            print(f"Loading Video: {file_name}")
-            print(f"Video Path: {video_path}")
-            self.video_path = video_path  # Store the video path
-            self.media_player.setMedia(QMediaContent(QUrl.fromLocalFile(video_path)))
-            self.media_player.mediaStatusChanged.connect(self.handle_media_status)
-       #     self.media_player.metaDataAvailableChanged.connect(self.on_meta_data_available)
-
-            self.status_bar.showMessage(f"Loaded Video: {file_name}")
-            self.media_player.durationChanged.connect(self.update_slider_range)
-            # The rest of your code...
-            if not self.video_dimensions.isValid():
-                try:
-                    self.video_dimensions = get_video_dimensions(video_path)
-                    print(f"Video dimensions set to: {self.video_dimensions}")
-                    self.video_widget.set_video_dimensions(self.video_dimensions.width(), self.video_dimensions.height())
-                except ValueError as e:
-                    print(f"Error getting video dimensions: {e}")
-                    # Handle the error, perhaps set a default size or show an error message
-
+#################### Chunk 3 of 3 ####################
+###### play_pause_video, start_frame_skip_forward, start_frame_skip_backward, stop_frame_skip, skip_frame, increase_speed, decrease_speed, update_slider_range, handle_media_status, handle_error, show_event_list, start_drawing_roi, reset_button_styles, on_event_type_selected, on_position_changed ######
     def play_pause_video(self):
         """Play or pause the video."""
         if self.media_player.state() == QMediaPlayer.PlayingState:
@@ -350,7 +361,6 @@ class VideoApp(QMainWindow):
             self.media_player.play()
             self.play_pause_btn.setText("Pause")
 
-
     def start_frame_skip_forward(self):
         """Start skipping frames forward."""
         if not self.is_frame_skip_button_pressed:
@@ -358,7 +368,6 @@ class VideoApp(QMainWindow):
             self.skip_frame()
             self.frame_skip_timer.start(83)
             self.is_frame_skip_button_pressed = True
-#            self.update_rois_for_new_frame()
 
     def start_frame_skip_backward(self):
         """Start skipping frames backward."""
@@ -367,22 +376,18 @@ class VideoApp(QMainWindow):
             self.skip_frame()
             self.frame_skip_timer.start(83)
             self.is_frame_skip_button_pressed = True
- #           self.update_rois_for_new_frame()
 
     def stop_frame_skip(self):
         """Stop skipping frames."""
         self.frame_skip_timer.stop()
         self.skip_direction = 0
         self.is_frame_skip_button_pressed = False
- #       self.update_rois_for_new_frame()
 
     def skip_frame(self):
         """Skip a single frame."""
         current_position = self.media_player.position()
         new_position = current_position + (self.frame_skip_amount * self.skip_direction)
         self.media_player.setPosition(new_position)
- #       self.update_rois_for_new_frame()
-
 
     def increase_speed(self):
         """Increase the playback speed."""
@@ -409,9 +414,35 @@ class VideoApp(QMainWindow):
         print(f"Error: {error_message}")
         self.status_bar.showMessage(f"Error: {error_message}")
 
+    def show_event_list(self):
+        print("def show_event_list(self):")
+        dialog = EventListDialog(self.events, self)
+        if dialog.exec_() == QDialog.Accepted:
+            print("User confirmed the event list")
+
+    def start_drawing_roi(self):
+        self.drawing = True
+        self.video_widget.start_drawing()
+        self.update()
+        print("def start_drawing_roi(self):")
+
+    def reset_button_styles(self):
+        """Reset the styles of start and end buttons."""
+        self.mark_start_btn.setStyleSheet("")
+        self.mark_end_btn.setStyleSheet("")
+        print("def reset_button_styles(self):")
+
+    def on_event_type_selected(self, event_type):
+        self.current_event_type = event_type
+
+    def on_position_changed(self, position):
+        if self.media_player.state() == QMediaPlayer.PlayingState or self.is_frame_skip_button_pressed:
+            self.current_frame_number = self.get_current_frame_number()
+       #     print(f"Current Frame Number: {self.current_frame_number}")  # Debugging statement
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    window = VideoApp()
-    window.show()
+    video_app = VideoApp(metadata_manager)
+    video_app.show()
     sys.exit(app.exec_())
